@@ -39,7 +39,7 @@ const self_transaction=async(req,res)=>{
   const session = await mongoose.startSession();
   session.startTransaction();
   try{
-    const account=await accountSchema.findOne({userId,accountNumber});
+    const account=await accountSchema.findOne({userId,accountNumber}).session(session);
     if (!account) return res.status(404).send({ message: 'Account not found' });
     if (account.status === 'INACTIVE') return res.status(400).send({ message: 'Account is inactive' });
 
@@ -81,13 +81,13 @@ const self_transaction=async(req,res)=>{
 
 
 const other_transaction=async(req,res)=>{
-  const {userAccountNumber,consumerAccountNumber,type,amount}=req.body;
+  const {revpayId,consumerAccountNumber,type,amount}=req.body;
   const userId=req.user.userId;
   const session = await mongoose.startSession();
   session.startTransaction();
   try{
-    const userAccount=await accountSchema.findOne({userId,accountNumber:userAccountNumber});
-    const consumerAccount=await accountSchema.findOne({accountNumber:consumerAccountNumber});
+    const userAccount=await accountSchema.findOne({userId,_id:revpayId}).session(session);
+    const consumerAccount=await accountSchema.findOne({accountNumber:consumerAccountNumber}).session(session);
     if(!userAccount || !consumerAccount) return res.status(404).send({ message: 'Account not found' });
     if (consumerAccount.status === 'INACTIVE') return res.status(400).send({ message: 'Account is inactive' });
     if(type==='Debit'){
@@ -118,6 +118,8 @@ const other_transaction=async(req,res)=>{
       res.status(200).json({userAccount,consumerAccount});
     }
   }catch(err){
+    await session.abortTransaction();
+    session.endSession();
     res.status(500).send(err);
   }
 }
