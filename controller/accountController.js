@@ -14,7 +14,7 @@ const accountCreate=async(req,res)=>{
   try {
     const account = new accountSchema({ userId, accountNumber, sortCode, status, allowCredit, allowDebit, balance, dailyWithdrawalLimit });
     await account.save();
-    res.status(201).send(account);
+    res.status(200).send(account);
   } catch (err) {
     res.status(500).send(err);
   }
@@ -110,6 +110,9 @@ const other_transaction=async(req,res)=>{
         userAccount.todayWithdrawnAmount += amount;
         userAccount.lastWithdrawalDate = today;  
         consumerAccount.balance += amount;
+      }
+      else{
+        return res.status(400).json({message: "Credit is not possible"});
       }
       await userAccount.save({session});
       await consumerAccount.save({session});

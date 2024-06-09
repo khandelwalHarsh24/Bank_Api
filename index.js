@@ -6,10 +6,13 @@ require('dotenv/config');
 app.use(express.json());
 const user=require('./routes/userRegister');
 const account=require('./routes/accountRoute');
+const notfound=require('./middleware/notfound');
 
 app.use('/api/v1',user);
 
 app.use('/api/v2',account);
+
+app.use(notfound);
 
 const start=async ()=>{
     try {
