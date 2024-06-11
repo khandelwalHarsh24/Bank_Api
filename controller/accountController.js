@@ -83,43 +83,44 @@ const self_transaction=async(req,res)=>{
 const other_transaction=async(req,res)=>{
   const {revpayId,consumerAccountNumber,type,amount}=req.body;
   const userId=req.user.userId;
+  console.log(userId);
   const session = await mongoose.startSession();
   session.startTransaction();
   try{
     const userAccount=await accountSchema.findOne({userId,_id:revpayId}).session(session);
     const consumerAccount=await accountSchema.findOne({accountNumber:consumerAccountNumber}).session(session);
+    // console.log(userAccount);
+    // console.log(consumerAccountNumber);
     if(!userAccount || !consumerAccount) return res.status(404).send({ message: 'Account not found' });
     if (consumerAccount.status === 'INACTIVE') return res.status(400).send({ message: 'Account is inactive' });
+    const today= userAccount.setDateWithoutTime(new Date());
+    const lastWithdrawalDate = userAccount.setDateWithoutTime(userAccount.lastWithdrawalDate);
     if(type==='Debit'){
       if(!consumerAccount.allowCredit) return res.status(400).send({ message: 'Credit transactions not allowed' });
       if(!userAccount.allowDebit) return res.status(400).send({ message: 'Debit transactions not allowed' });
-      const today= userAccount.setDateWithoutTime(new Date());
-      const lastWithdrawalDate = userAccount.setDateWithoutTime(userAccount.lastWithdrawalDate);
+      // console.log(lastWithdrawalDate);
       if(lastWithdrawalDate && lastWithdrawalDate.getTime()===today.getTime()){
         if(userAccount.todayWithdrawnAmount+amount>userAccount.dailyWithdrawalLimit){
           return res.status(400).send({ message: 'Withdrawal limit exceeded' });
         }
-        else{
-          if(amount>userAccount.dailyWithdrawalLimit){
-            return res.status(400).send({ message: 'Withdrawal limit exceeded' });
-          }
-          userAccount.todayWithdrawnAmount=0;
-        }
-        if (userAccount.balance < amount) return res.status(400).send({ message: 'Insufficient balance' });
-        userAccount.balance -= amount;
-        userAccount.todayWithdrawnAmount += amount;
-        userAccount.lastWithdrawalDate = today;  
-        consumerAccount.balance += amount;
       }
       else{
-        return res.status(400).json({message: "Credit is not possible"});
+        if(amount>userAccount.dailyWithdrawalLimit){
+          return res.status(400).send({ message: 'Withdrawal limit exceeded' });
+        }
+        userAccount.todayWithdrawnAmount=0;
       }
-      await userAccount.save({session});
-      await consumerAccount.save({session});
-      await session.commitTransaction();
-      session.endSession();
-      res.status(200).json({userAccount,consumerAccount});
+      if (userAccount.balance < amount) return res.status(400).send({ message: 'Insufficient balance' });
+      userAccount.balance -= amount;
+      userAccount.todayWithdrawnAmount += amount;
+      userAccount.lastWithdrawalDate = today;  
+      consumerAccount.balance += amount;
     }
+    await userAccount.save({session});
+    await consumerAccount.save({session});
+    await session.commitTransaction();
+    session.endSession();
+    res.status(200).json({userAccount,consumerAccount});
   }catch(err){
     await session.abortTransaction();
     session.endSession();
